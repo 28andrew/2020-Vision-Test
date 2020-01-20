@@ -109,7 +109,7 @@ public class Main {
                 Imgproc.drawContours(contoursDrawn, contours, i, new Scalar(0, 255, 0), 1);
                 //Imgproc.putText(contoursDrawn, "solidity, ratio: " + String.format("%.2f", solidity) + " " + ratio, textLocation, Core.FONT_HERSHEY_SIMPLEX,
                 //        0.5, new Scalar(255, 0, 255), 1);
-                Imgproc.putText(contoursDrawn, String.format("S%.2f, R%.2f, Y%.2f, A%.2f", solidity, ratio, momentYRatio, area), textLocation, Core.FONT_HERSHEY_SIMPLEX,
+                Imgproc.putText(contoursDrawn, String.format("S%.2f, R%.2f, X%.2f, Y%.2f, A%.2f", solidity, ratio, momentXRatio, momentYRatio, area), textLocation, Core.FONT_HERSHEY_SIMPLEX,
                         0.4, new Scalar(255, 0, 255), 1);
                 Imgproc.drawContours(contoursDrawn, contours, i, new Scalar(0, 0, 255), -1);
                 if (solidity >= 0.06 && solidity <= .2 && ratio <= 2.9 && momentYRatio >= .45) {
@@ -157,7 +157,7 @@ public class Main {
                         eightTargets[1] = sortedPoints.topRight;
 
                         // Now find bottom left and bottom right
-                        double toleranceSquared = Math.pow(28, 2);
+                        double toleranceSquared = Math.pow(28, 2); // TODO : Change tolerance based on area/size of Image, otherwise it doesn't work far away
                         List<Point> closeToBottomLine = new ArrayList<>();
                         for (Point point : points) {
                             if (distanceSquared(point, sortedPoints.bottomLeft, sortedPoints.bottomRight) <= toleranceSquared) {
