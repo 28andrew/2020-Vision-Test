@@ -78,7 +78,7 @@ public class Main {
 
                 Point textLocation = new Point(centerX + boundingRect.width / 2.3, centerY);
 
-                double epsilon = 0.007 * Imgproc.arcLength(new MatOfPoint2f(contour.toArray()), true);
+                double epsilon = 0.005 * Imgproc.arcLength(new MatOfPoint2f(contour.toArray()), true);
                 MatOfPoint2f approx = new MatOfPoint2f();
                 Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approx, epsilon, true);
 
@@ -95,7 +95,7 @@ public class Main {
                     for (Point point : points) {
                         Imgproc.circle(contoursDrawn, point, 2, new Scalar(255, 0, 0), -1);
                     }
-                    if (points.size() >= 8) {
+                    if (points.size() >= 4) {
 
                         Point[] eightTargets = new Point[8];
                         // TODO : Better algorithm idea:
@@ -111,9 +111,9 @@ public class Main {
 
 
 
-                        for (int j = 0; j < 4; j++) {
+                        /*for (int j = 0; j < 4; j++) {
                             Imgproc.line(contoursDrawn, rectPoints[j], rectPoints[(j+1)%4], new Scalar(255, 120, 255));
-                        }
+                        }*/
                         // use center of normal bounding box
                         var sortedPoints = RectUtil.findCorners(rectPoints, new Point(centerX, centerY));
                         Imgproc.circle(contoursDrawn, sortedPoints.bottomLeft, 3, new Scalar(0, 0, 255));
@@ -121,26 +121,64 @@ public class Main {
                         Imgproc.circle(contoursDrawn, sortedPoints.topRight, 3, new Scalar(5, 243, 255));
                         Imgproc.circle(contoursDrawn, sortedPoints.topLeft, 3, new Scalar(5, 255, 5));
 
-                        points.sort((p1, p2) -> Float.compare(
-                                distanceSquared(p1, sortedPoints.topLeft, sortedPoints.topRight),
-                                distanceSquared(p2, sortedPoints.topLeft, sortedPoints.topRight)));
-                        Point[] topFour = new Point[]{points.get(0), points.get(1), points.get(2), points.get(3)};
-                        points.remove(0); points.remove(0); points.remove(0); points.remove(0);
-                        // Sort by x?
-                        eightTargets[0] = topFour[0];
-                        eightTargets[1] = topFour[1];
-                        eightTargets[2] = topFour[2];
-                        eightTargets[3] = topFour[3];
+                        // Top left & top right of target
+                        eightTargets[0] = sortedPoints.topLeft;
+                        eightTargets[1] = sortedPoints.topRight;
 
-                        points.sort((p1, p2) -> Float.compare(
-                                distanceSquared(p1, sortedPoints.bottomLeft, sortedPoints.bottomRight),
-                                distanceSquared(p2, sortedPoints.bottomLeft, sortedPoints.bottomRight)
-                        ));
-                        Point[] bottomTwo = new Point[]{points.get(0), points.get(1)};
-                        points.remove(0); points.remove(0);
-                        eightTargets[4] = bottomTwo[0];
-                        eightTargets[5] = bottomTwo[1];
+                        // Now find bottom left and bottom right
+                        double toleranceSquared = Math.pow(28, 2);
+                        List<Point> closeToBottomLine = new ArrayList<>();
+                        for (Point point : points) {
+                            if (distanceSquared(point, sortedPoints.bottomLeft, sortedPoints.bottomRight) <= toleranceSquared) {
+                                closeToBottomLine.add(point);
+                            }
+                        }
 
+                        // Sort bottom two points from lowest x to highest x
+                        closeToBottomLine.sort(Comparator.comparing(p2 -> p2.x));
+                        if (closeToBottomLine.size() <= 2) {
+                            continue;
+                        }
+                        eightTargets[2] = closeToBottomLine.get(0);
+                        eightTargets[3] = closeToBottomLine.get(closeToBottomLine.size() - 1);
+
+                        /*double toleranceSquared = Math.pow(28, 2);
+                        List<Point> closeToTopLine = new ArrayList<>();
+                        for (int j = 0; j < points.size(); j++) {
+                            Point point = (Point) points.toArray()[j];
+                            if (distanceSquared(point, sortedPoints.topLeft, sortedPoints.topRight) <= toleranceSquared) {
+                                closeToTopLine.add(point);
+                                points.remove(j); //todo :optimize with for j loop
+                            }
+                        }
+
+                        if (closeToTopLine.size() <= 2) {
+                            continue;
+                        }
+
+                        // Sort top four points from lowest x to highest x
+                        closeToTopLine.sort(Comparator.comparingDouble(p2 -> p2.x));
+
+                        eightTargets[0] = getIfExists(closeToTopLine, 0);
+                        eightTargets[1] = getIfExists(closeToTopLine, 1);
+                        eightTargets[2] = getIfExists(closeToTopLine, closeToTopLine.size() - 1);
+                        eightTargets[3] = getIfExists(closeToTopLine, closeToTopLine.size() - 2);*/
+
+                        /*List<Point> closeToBottomLine = new ArrayList<>();
+                        for (Point point : points) {
+                            if (distanceSquared(point, sortedPoints.bottomLeft, sortedPoints.bottomRight) <= toleranceSquared) {
+                                closeToBottomLine.add(point);
+                            }
+                        }
+
+                        if (closeToBottomLine.size() <= 2) {
+                            continue;
+                        }
+
+                        // Sort bottom two points from lowest x to highest x
+                        closeToBottomLine.sort(Comparator.comparing(p2 -> p2.x));
+                        eightTargets[4] = getIfExists(closeToBottomLine, 0);
+                        eightTargets[5] = getIfExists(closeToBottomLine, 1);*/
 
                         /*Point[] left = Arrays.copyOfRange(sorted, 0, 4);
                         Point[] right = Arrays.copyOfRange(sorted, 4, 8);
@@ -279,5 +317,13 @@ public class Main {
         float len_sq = E * E + F * F;
 
         return (float) dot * dot / len_sq;
+    }
+
+    public static <T> T getIfExists(List<T> list, int index) {
+        if (index <= (list.size() - 1)) {
+            return list.get(index);
+        } else {
+            return null;
+        }
     }
 }
