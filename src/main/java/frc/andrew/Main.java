@@ -275,7 +275,7 @@ public class Main {
             }
             System.out.println("Time: " + (System.currentTimeMillis() - start) + " ms");
 
-            if (Objects.equals(args[0], "output")) {
+            if (args.length >= 1 && Objects.equals(args[0], "output")) {
                 Imgcodecs.imwrite("images/output/out-" + name, contoursDrawn);
             }
             showBGR("Contours", contoursDrawn);
