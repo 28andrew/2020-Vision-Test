@@ -7,10 +7,7 @@ import org.opencv.imgproc.Imgproc;
 import org.opencv.imgproc.Moments;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 public class Main {
     private static File imagesFolder = new File("images/");
@@ -44,6 +41,13 @@ public class Main {
             Core.inRange(hsv, new Scalar(66, 100, 100), new Scalar(86, 255, 255), threshold);
             showGreyscale("Threshold", threshold);
 
+            Mat dilateClose = new Mat();
+            // Dilate & close
+            Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3,3));
+            Imgproc.dilate(threshold, dilateClose, kernel);
+            Imgproc.morphologyEx(dilateClose, dilateClose, Imgproc.MORPH_CLOSE, kernel);
+            showGreyscale("Morphology", dilateClose);
+
             /*Mat blur = new Mat();
             Imgproc.blur(threshold, blur, new Size(5.0, 5.0));
             showGreyscale("Blur Threshold", blur);*/
@@ -51,7 +55,8 @@ public class Main {
             Mat contoursDrawn = mat.clone();
             List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
             Mat hierarchy = new Mat();
-            Imgproc.findContours(threshold, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+            Imgproc.findContours(dilateClose, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+            long start = System.currentTimeMillis();
             for (int i = 0; i < contours.size(); i++) {
                 MatOfPoint contour = contours.get(i);
 
@@ -77,11 +82,14 @@ public class Main {
                 MatOfPoint2f approx = new MatOfPoint2f();
                 Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approx, epsilon, true);
 
-                if (solidity >= 0.06 && solidity <= .2 && ratio >= 1.2 && ratio <= 2.9 && momentYRatio >= .6) {
+                Imgproc.drawContours(contoursDrawn, contours, i, new Scalar(0, 255, 0), 1);
+                //Imgproc.putText(contoursDrawn, "solidity, ratio: " + String.format("%.2f", solidity) + " " + ratio, textLocation, Core.FONT_HERSHEY_SIMPLEX,
+                //        0.5, new Scalar(255, 0, 255), 1);
+                Imgproc.putText(contoursDrawn, String.format("%.2f, %.2f, %.2f", momentXRatio, momentYRatio, area), textLocation, Core.FONT_HERSHEY_SIMPLEX,
+                        0.5, new Scalar(255, 0, 255), 1);
+                Imgproc.drawContours(contoursDrawn, contours, i, new Scalar(0, 0, 255), -1);
+                if (solidity >= 0.06 && solidity <= .2 && ratio <= 2.9 && momentYRatio >= .6) {
                     Imgproc.drawContours(contoursDrawn, contours, i, new Scalar(0, 0, 255), -1);
-                    Imgproc.drawContours(contoursDrawn, contours, i, new Scalar(0, 255, 0), 1);
-                    Imgproc.putText(contoursDrawn, String.format("%.2f, %.2f, %.2f", momentXRatio, momentYRatio, area), textLocation, Core.FONT_HERSHEY_SIMPLEX,
-                            0.5, new Scalar(255, 0, 255), 1);
 
                     List<Point> points = new ArrayList<>(Arrays.asList(approx.toArray()));
                     for (Point point : points) {
@@ -90,7 +98,105 @@ public class Main {
                     if (points.size() >= 8) {
 
                         Point[] eightTargets = new Point[8];
+                        // TODO : Better algorithm idea:
+                        /*
+                            Find points to left of center
+                            Find points to right of center
+                            For each side, closest 2 points =
+                         */
+
+                        var minRect = Imgproc.minAreaRect(new MatOfPoint2f(contour.toArray()));
+                        Point[] rectPoints = new Point[4];
+                        minRect.points(rectPoints);
+
+
+
+                        for (int j = 0; j < 4; j++) {
+                            Imgproc.line(contoursDrawn, rectPoints[j], rectPoints[(j+1)%4], new Scalar(255, 120, 255));
+                        }
+                        // use center of normal bounding box
+                        var sortedPoints = RectUtil.findCorners(rectPoints, new Point(centerX, centerY));
+                        Imgproc.circle(contoursDrawn, sortedPoints.bottomLeft, 3, new Scalar(0, 0, 255));
+                        Imgproc.circle(contoursDrawn, sortedPoints.bottomRight, 3, new Scalar(66, 179, 279));
+                        Imgproc.circle(contoursDrawn, sortedPoints.topRight, 3, new Scalar(5, 243, 255));
+                        Imgproc.circle(contoursDrawn, sortedPoints.topLeft, 3, new Scalar(5, 255, 5));
+
+                        points.sort((p1, p2) -> Float.compare(
+                                distanceSquared(p1, sortedPoints.topLeft, sortedPoints.topRight),
+                                distanceSquared(p2, sortedPoints.topLeft, sortedPoints.topRight)));
+                        Point[] topFour = new Point[]{points.get(0), points.get(1), points.get(2), points.get(3)};
+                        points.remove(0); points.remove(0); points.remove(0); points.remove(0);
+                        // Sort by x?
+                        eightTargets[0] = topFour[0];
+                        eightTargets[1] = topFour[1];
+                        eightTargets[2] = topFour[2];
+                        eightTargets[3] = topFour[3];
+
+                        points.sort((p1, p2) -> Float.compare(
+                                distanceSquared(p1, sortedPoints.bottomLeft, sortedPoints.bottomRight),
+                                distanceSquared(p2, sortedPoints.bottomLeft, sortedPoints.bottomRight)
+                        ));
+                        Point[] bottomTwo = new Point[]{points.get(0), points.get(1)};
+                        points.remove(0); points.remove(0);
+                        eightTargets[4] = bottomTwo[0];
+                        eightTargets[5] = bottomTwo[1];
+
+
+                        /*Point[] left = Arrays.copyOfRange(sorted, 0, 4);
+                        Point[] right = Arrays.copyOfRange(sorted, 4, 8);
+
+                        // Close & far left
+                        Arrays.sort(left, new Comparator<>() {
+                            @Override
+                            public int compare(Point p1, Point p2) {
+                                return Double.compare(getDistanceSquaredFromCenter(p1), getDistanceSquaredFromCenter(p2));
+                            }
+
+                            private double getDistanceSquaredFromCenter(Point p) {
+                                return Math.pow((centerX - p.x), 2) + Math.pow((centerY - p.y), 2);
+                            }
+                        });
+                        Point[] leftClose = Arrays.copyOfRange(left, 2, 4);
+                        Point[] leftFar = Arrays.copyOfRange(left, 0, 2);
+
+                        // Close & far right
+                        Arrays.sort(right, new Comparator<>() {
+                            @Override
+                            public int compare(Point p1, Point p2) {
+                                return Double.compare(getDistanceSquaredFromCenter(p1), getDistanceSquaredFromCenter(p2));
+                            }
+
+                            private double getDistanceSquaredFromCenter(Point p) {
+                                return Math.pow((centerX - p.x), 2) + Math.pow((centerY - p.y), 2);
+                            }
+                        });
+                        Point[] rightClose = Arrays.copyOfRange(right, 2, 4);
+                        Point[] rightFar = Arrays.copyOfRange(right, 0, 2);
+
+                        System.arraycopy(leftClose, 0, eightTargets,0, 2);
+                        System.arraycopy(rightClose, 0, eightTargets,2, 2);
+                        System.arraycopy(leftFar, 0, eightTargets,4, 2);
+                        System.arraycopy(rightFar, 0, eightTargets,6, 2);*/
+
+                        /*
+                        // Sort by furthest from center to closest from center
                         points.sort(new Comparator<>() {
+                            @Override
+                            public int compare(Point p1, Point p2) {
+                                return Double.compare(getDistanceSquaredFromCenter(p1), getDistanceSquaredFromCenter(p2));
+                            }
+
+                            private double getDistanceSquaredFromCenter(Point p) {
+                                return Math.pow((centerX - p.x), 2) + Math.pow((centerY - p.y), 2);
+                            }
+                        });
+                        Point[] sortedPoints = points.toArray(new Point[0]);
+                        Point[] farFour = Arrays.copyOfRange(sortedPoints, 0, 4);
+                        Point[] closeFour = Arrays.copyOfRange(sortedPoints, 4, 8);
+                        System.arraycopy(farFour, 0, eightTargets, 0, 4);
+                        System.arraycopy(closeFour, 0, eightTargets, 4, 4);*/
+
+                        /*points.sort(new Comparator<>() {
                             @Override
                             public int compare(Point point, Point t1) {
                                 return -1* Double.compare(getDistanceEstimateFromMoment(point), getDistanceEstimateFromMoment(t1));
@@ -103,7 +209,7 @@ public class Main {
                         });
                         for (int j = 0; j < 8; j++) {
                             eightTargets[j] = points.get(j);
-                        }
+                        }*/
 
                         /*// Sort ascending
                         points.sort(Comparator.comparingDouble(point -> point.x));
@@ -120,13 +226,20 @@ public class Main {
 
                         // Draw 8 points
                         for (Point point : eightTargets) {
+                            if (point == null) {
+                                continue;
+                            }
                             System.out.println("point: " + point.toString());
                             Imgproc.circle(contoursDrawn, point, 3, new Scalar(0, 255, 255), -1);
                         }
                     }
                 }
             }
+            System.out.println("Time: " + (System.currentTimeMillis() - start) + " ms");
 
+            if (Objects.equals(args[0], "output")) {
+                Imgcodecs.imwrite("images/output/out-" + name, contoursDrawn);
+            }
             showBGR("Contours", contoursDrawn);
         }
     }
@@ -146,5 +259,25 @@ public class Main {
         Mat greyscale = new Mat();
         Imgproc.cvtColor(mat, greyscale, Imgproc.COLOR_GRAY2BGR);
         showBGR(name, greyscale);
+    }
+
+    public static float distanceSquared(Point point, Point line1, Point line2) {
+        return distanceSquared((float) point.x, (float) point.y, (float) line1.x, (float) line1.y, (float) line2.x, (float) line2.y);
+    }
+
+    //https://stackoverflow.com/a/30567488/4543409
+    public static float distanceSquared(float x, float y, float x1, float y1, float x2, float y2) {
+
+        float A = x - x1; // position of point rel one end of line
+        float B = y - y1;
+        float C = x2 - x1; // vector along line
+        float D = y2 - y1;
+        float E = -D; // orthogonal vector
+        float F = C;
+
+        float dot = A * E + B * F;
+        float len_sq = E * E + F * F;
+
+        return (float) dot * dot / len_sq;
     }
 }
