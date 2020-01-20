@@ -18,16 +18,36 @@ public class Main {
     }
 
     public static void main(String[] args) {
+        List<String> arguments = Arrays.asList(args);
+
         if (!outputFolder.exists()) {
             outputFolder.mkdirs();
         }
+
+        if (arguments.contains("clean")) {
+            File[] outputFiles = outputFolder.listFiles();
+            if (outputFiles != null) {
+                for (File f : outputFiles) {
+                    f.delete();
+                }
+            }
+        }
+
+        List<Long> times = new ArrayList<>();
+
         File[] files = imagesFolder.listFiles();
         assert files != null;
         for (File file : files) {
+            if (file.isDirectory()) {
+                continue;
+            }
             String name = file.getName();
+            System.out.println(">>> " + name);
 
             Mat mat = Imgcodecs.imread("images/" + file.getName());
-            showBGR(name, mat);
+            if (!arguments.contains("headless")) {
+                showBGR(name, mat);
+            }
 
             /*Mat blur = new Mat();
             Imgproc.blur(mat, blur, new Size(1.5, 1.5));
@@ -39,14 +59,18 @@ public class Main {
 
             Mat threshold = new Mat();
             Core.inRange(hsv, new Scalar(66, 100, 100), new Scalar(86, 255, 255), threshold);
-            showGreyscale("Threshold", threshold);
+            if (!arguments.contains("headless")) {
+                showGreyscale("Threshold", threshold);
+            }
 
             Mat dilateClose = new Mat();
             // Dilate & close
             Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3,3));
             Imgproc.dilate(threshold, dilateClose, kernel);
             Imgproc.morphologyEx(dilateClose, dilateClose, Imgproc.MORPH_CLOSE, kernel);
-            showGreyscale("Morphology", dilateClose);
+            if (!arguments.contains("headless")) {
+                showGreyscale("Morphology", dilateClose);
+            }
 
             /*Mat blur = new Mat();
             Imgproc.blur(threshold, blur, new Size(5.0, 5.0));
@@ -85,10 +109,10 @@ public class Main {
                 Imgproc.drawContours(contoursDrawn, contours, i, new Scalar(0, 255, 0), 1);
                 //Imgproc.putText(contoursDrawn, "solidity, ratio: " + String.format("%.2f", solidity) + " " + ratio, textLocation, Core.FONT_HERSHEY_SIMPLEX,
                 //        0.5, new Scalar(255, 0, 255), 1);
-                Imgproc.putText(contoursDrawn, String.format("%.2f, %.2f, %.2f", momentXRatio, momentYRatio, area), textLocation, Core.FONT_HERSHEY_SIMPLEX,
-                        0.5, new Scalar(255, 0, 255), 1);
+                Imgproc.putText(contoursDrawn, String.format("S%.2f, R%.2f, Y%.2f, A%.2f", solidity, ratio, momentYRatio, area), textLocation, Core.FONT_HERSHEY_SIMPLEX,
+                        0.4, new Scalar(255, 0, 255), 1);
                 Imgproc.drawContours(contoursDrawn, contours, i, new Scalar(0, 0, 255), -1);
-                if (solidity >= 0.06 && solidity <= .2 && ratio <= 2.9 && momentYRatio >= .6) {
+                if (solidity >= 0.06 && solidity <= .2 && ratio <= 2.9 && momentYRatio >= .45) {
                     Imgproc.drawContours(contoursDrawn, contours, i, new Scalar(0, 0, 255), -1);
 
                     List<Point> points = new ArrayList<>(Arrays.asList(approx.toArray()));
@@ -114,12 +138,19 @@ public class Main {
                         /*for (int j = 0; j < 4; j++) {
                             Imgproc.line(contoursDrawn, rectPoints[j], rectPoints[(j+1)%4], new Scalar(255, 120, 255));
                         }*/
+
+
+
                         // use center of normal bounding box
                         var sortedPoints = RectUtil.findCorners(rectPoints, new Point(centerX, centerY));
+                        if (sortedPoints.bottomLeft == null || sortedPoints.bottomRight == null ||
+                                sortedPoints.topLeft == null || sortedPoints.topRight == null) {
+                            continue;
+                        }
                         Imgproc.circle(contoursDrawn, sortedPoints.bottomLeft, 3, new Scalar(0, 0, 255));
                         Imgproc.circle(contoursDrawn, sortedPoints.bottomRight, 3, new Scalar(66, 179, 279));
-                        Imgproc.circle(contoursDrawn, sortedPoints.topRight, 3, new Scalar(5, 243, 255));
-                        Imgproc.circle(contoursDrawn, sortedPoints.topLeft, 3, new Scalar(5, 255, 5));
+                        Imgproc.circle(contoursDrawn, sortedPoints.topLeft, 3, new Scalar(5, 243, 255));
+                        Imgproc.circle(contoursDrawn, sortedPoints.topRight, 3, new Scalar(5, 255, 5));
 
                         // Top left & top right of target
                         eightTargets[0] = sortedPoints.topLeft;
@@ -273,13 +304,25 @@ public class Main {
                     }
                 }
             }
-            System.out.println("Time: " + (System.currentTimeMillis() - start) + " ms");
+            long time = System.currentTimeMillis() - start;
+            System.out.println("Time: " + (time) + " ms");
+            times.add(time);
 
-            if (args.length >= 1 && Objects.equals(args[0], "output")) {
+            if (arguments.contains("output") || arguments.contains("headless")) {
+                System.out.println("Writing");
                 Imgcodecs.imwrite("images/output/out-" + name, contoursDrawn);
             }
-            showBGR("Contours", contoursDrawn);
+            if (!arguments.contains("headless")) {
+                showBGR("Contours", contoursDrawn);
+            }
         }
+
+        System.out.println("");
+        System.out.println(">>>>>>>>>>>>>>>>>>>>>");
+        System.out.println("Finished");
+        System.out.println("Quickest: " + Collections.min(times) + " ms");
+        System.out.println("Longest: " + Collections.max(times) + " ms");
+        System.out.println("Average: " + String.format("%.2f", times.stream().mapToLong(l -> l).average().orElse(0.0)) + " ms");
     }
 
     public static void showBGR(String name, Mat bgr) {
