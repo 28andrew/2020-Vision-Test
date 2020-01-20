@@ -156,8 +156,18 @@ public class Main {
                         eightTargets[0] = sortedPoints.topLeft;
                         eightTargets[1] = sortedPoints.topRight;
 
+                        // Find height of minRect via distance formula
+                        var minRectHeight = Math.sqrt(
+                                Math.pow(sortedPoints.bottomLeft.x - sortedPoints.topLeft.x, 2) +
+                                Math.pow(sortedPoints.bottomLeft.y - sortedPoints.topLeft.y, 2));
+
                         // Now find bottom left and bottom right
-                        double toleranceSquared = Math.pow(28, 2); // TODO : Change tolerance based on area/size of Image, otherwise it doesn't work far away
+                        // From photo editor
+                        // Height = 75
+                        // Tape height = 11
+                        // Try to make tolerance a little more than half of tape height (66%)
+                        double toleranceSquared = Math.pow(((minRectHeight)*(11/(double)75)), 2); // TODO : Change tolerance based on area/size of Image, otherwise it doesn't work far away
+                        System.out.println("tolerance: " + Math.sqrt(toleranceSquared));
                         List<Point> closeToBottomLine = new ArrayList<>();
                         for (Point point : points) {
                             if (distanceSquared(point, sortedPoints.bottomLeft, sortedPoints.bottomRight) <= toleranceSquared) {
