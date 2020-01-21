@@ -182,7 +182,7 @@ public class Main {
 
                             // Sort bottom two points from lowest x to highest x
                             closeToBottomLine.sort(Comparator.comparing(p2 -> p2.x));
-                            if (closeToBottomLine.size() <= 2) {
+                            if (closeToBottomLine.size() < 2) {
                                 continue;
                             }
                             fourTargets[2] = closeToBottomLine.get(0);
@@ -359,7 +359,7 @@ public class Main {
         showBGR(name, greyscale);
     }
 
-    private static float distanceSquared(Point point, Point line1, Point line2) {
+    protected static float distanceSquared(Point point, Point line1, Point line2) {
         return distanceSquared((float) point.x, (float) point.y, (float) line1.x, (float) line1.y, (float) line2.x, (float) line2.y);
     }
 
